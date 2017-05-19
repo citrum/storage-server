@@ -1,22 +1,14 @@
-import sbtassembly.AssemblyPlugin.assemblySettings
-
 val DefaultScalaVersion = "2.11.11"
-
-// setting to make the functionality be accessible from the outside (e.g., the terminal)
-val profile = SettingKey[Profile]("profile", "Uses resources for the specified profile.")
 
 lazy val dev = inputKey[Unit]("Run NettyServerDev")
 val devTask = dev := (runMain in Compile).fullInput(" server.NettyServerDev").evaluated
 
-lazy val root = Project(id = "storage-server", base = new File("."), settings = assemblySettings ++ Seq(
-  profile := Profile.prod,
-  version := "0.9",
+lazy val root = Project(id = "storage-server", base = new File("."), settings = AssemblyPlugin.assemblySettings ++ Seq(
+  version := "0.9.0",
   scalaVersion := DefaultScalaVersion,
 
   javacOptions ++= Seq("-source", "1.8", "-encoding", "UTF-8"),
   javacOptions in doc := Seq("-source", "1.8"),
-
-  sources in doc in Compile := List(), // Выключить генерацию JavaDoc, ScalaDoc
 
   scalaSource in Compile := baseDirectory.value / "src",
   resourceDirectory in Compile := baseDirectory.value / "conf",
@@ -36,12 +28,26 @@ lazy val root = Project(id = "storage-server", base = new File("."), settings = 
   libraryDependencies += "com.jsuereth" %% "scala-arm" % "1.4",
   libraryDependencies += "org.glassfish.external" % "opendmk_jmxremote_optional_jar" % "1.0-b01-ea",
 
-  mainClass in assembly := (profile.value match {
-    case Profile.local => Some("server.NettyServerDev")
-    case Profile.jenkins => Some("server.NettyServerJenkins")
-    case Profile.prod => Some("server.NettyServer")
-  }),
   assemblyJarName in assembly := "../storage-server.jar",
 
-  devTask
+  devTask,
+
+  // Deploy settings
+  startYear := Some(2014),
+  homepage := Some(url("https://github.com/citrum/storage-server")),
+  licenses += ("Apache-2.0", url("https://www.apache.org/licenses/LICENSE-2.0.html")),
+  bintrayVcsUrl := Some("https://github.com/citrum/storage-server"),
+  bintrayOrganization := Some("citrum"),
+  // No Javadoc
+  publishArtifact in(Compile, packageDoc) := false,
+  publishArtifact in packageDoc := false,
+  sources in(Compile, doc) := Nil,
+
+  // Publish fat jar
+  artifact in (Compile, assembly) := {
+    val art = (artifact in (Compile, assembly)).value
+    art.copy(`classifier` = Some("assembly"))
+  }
 ))
+
+addArtifact(artifact in (Compile, assembly), assembly)
