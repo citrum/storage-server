@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+  <meta charset="UTF-8">
+  <title></title>
+</head>
+<body>
+
+<script>
+  // Create the XHR object.
+  function createCORSRequest(method, url) {
+    var xhr = new XMLHttpRequest();
+    if ("withCredentials" in xhr) {
+      // XHR for Chrome/Firefox/Opera/Safari.
+      xhr.open(method, url, true);
+    } else if (typeof XDomainRequest != "undefined") {
+      // XDomainRequest for IE.
+      xhr = new XDomainRequest();
+      xhr.open(method, url);
+    } else {
+      // CORS not supported.
+      xhr = null;
+      alert('CORS not supported');
+    }
+    return xhr;
+  }
+
+  /**
+   * Получить токен, чтобы с ним послать запрос
+   */
+  function createToken() {
+    var btn = document.getElementById("create-token");
+    btn.disabled = true;
+    var xhr = createCORSRequest('POST', '/create-token');
+
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState == 4) {
+        var tokenId = xhr.responseText;
+        btn.style.display = 'none';
+        btn.disabled = false;
+
+        document.getElementById('token').innerHTML = tokenId;
+        var form = document.getElementById('form');
+        form.action = '/upload-temp?' + tokenId;
+        form.style.display = null;
+        form.addEventListener('submit', function () {
+          form.style.display = 'none';
+          startInfoPooling(tokenId);
+        });
+      }
+    };
+    xhr.onerror = function () {
+      alert('error!')
+    };
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.send(JSON.stringify({
+      maxSize: {w: 500, h: 500}
+    }));
+  }
+
+  /**
+   * Начать регулярное получение прогресса загрузки.
+   * @param tokenId
+   */
+  function startInfoPooling(tokenId) {
+    var info = document.getElementById('info');
+    info.style.display = null;
+    document.getElementById('progress').style.display = null;
+    var progressValue = document.getElementById('value');
+
+    function pool() {
+      var xhr = createCORSRequest('GET', '/info?' + tokenId);
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState == 4) {
+          var resp = JSON.parse(xhr.responseText);
+          if (resp['error']) {
+            info.innerHTML = 'Error uploading:<br>' +
+                '<b>' + resp['error'] + '</b><br>' +
+                '<br>' +
+                '<a href="javascript:window.location.reload()">reload</a>';
+            clearInterval(timer);
+          } else {
+            progressValue.style.width = (100 * resp['read'] / resp['total']) + '%';
+            if (resp['completed']) {
+              info.innerHTML = 'Complete ' + resp['read'] + ' / ' + resp['total'];
+              clearInterval(timer);
+              onCompletePooling(resp['path']);
+            } else {
+              info.innerHTML = 'Uploading ' + resp['read'] + ' / ' + resp['total'];
+            }
+          }
+        }
+      };
+      xhr.onerror = function () {
+        alert('error!')
+      };
+      xhr.send();
+    }
+
+    var timer = setInterval(pool, 500);
+  }
+
+  /**
+   * Загрузка завершена
+   */
+  function onCompletePooling(path) {
+    var iframe = document.getElementById('upload');
+
+    var info = document.getElementById('info');
+    info.innerHTML = path;
+
+    showImages('tmp', path);
+    var storeButton = document.getElementById('store');
+    storeButton.addEventListener('click', function () {
+      doStore(path);
+    });
+    storeButton.style.display = null;
+  }
+
+  function showImages(idPrefix, src) {
+    var image1 = document.getElementById(idPrefix + '-image1');
+    image1.style.display = null;
+    image1.src = '/file/' + src;
+    var image2 = document.getElementById(idPrefix + '-image2');
+    image2.style.display = null;
+    image2.src = '/file/' + src.replace(/\.[^.]+$/, '~150x150.jpg');
+    var image3 = document.getElementById(idPrefix + '-image3');
+    image3.style.display = null;
+    image3.src = '/file/' + src.replace(/\.[^.]+$/, '~50x50.jpg');
+  }
+
+  /**
+   * Сохранить временные файлы на постоянные.
+   */
+  function doStore(tmpname) {
+    var storeButton = document.getElementById('store');
+    storeButton.disabled = false;
+
+    var xhr = createCORSRequest('GET', '/store?tmpname=' + tmpname + '&suffix=tt');
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState == 4) {
+        var resp = JSON.parse(xhr.responseText);
+        var info = document.getElementById('store-info');
+        info.style.display = null;
+        info.innerHTML = resp['path'];
+
+        showImages('store', resp['path']);
+
+        var delBtn = document.getElementById('delete');
+        delBtn.style.display = null;
+        delBtn.addEventListener('click', function () {
+          doDelete(resp['path']);
+        });
+      }
+    };
+    xhr.onerror = function () {
+      alert('error!')
+    };
+    xhr.send();
+  }
+
+  /**
+   * Удалить файл и его thumbnails.
+   * @param name
+   */
+  function doDelete(name) {
+    var xhr = createCORSRequest('GET', '/delete?name=' + name);
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState == 4) {
+        alert(xhr.responseText);
+      }
+    };
+    xhr.onerror = function () {
+      alert('error!')
+    };
+    xhr.send();
+  }
+</script>
+
+<!-- Step 1 - create token -->
+<button style="font-size: 20px; padding: 30px 100px" id="create-token" onclick="createToken()">
+  Create token
+</button>
+
+<!-- Step 2 - choose file, start upload -->
+<form id="form" enctype="multipart/form-data" method="post" target="upload" style="display: none">
+  <h3>Upload file, token: <span id="token"></span></h3>
+  <input type="file" name="f">
+  <button type="submit">submit</button>
+</form>
+
+<iframe id="upload" name="upload" frameborder="0" style="display: none"></iframe>
+
+<!-- Step 3 - upload progress -->
+<div id="info" style="display: none">
+  Start uploading...
+</div>
+<div id="progress" style="margin-top: 10px; width: 200px; height: 10px; border: 1px solid #466B97; display: none">
+  <div id="value" style="width: 0; height: 10px; background: #3F89E1"></div>
+</div>
+
+<!-- Step 4 - upload to temp finished - show images -->
+<div style="margin: 10px 0">
+  <img id="tmp-image1" style="display: none; padding: 10px"/>
+  <img id="tmp-image2" style="display: none; padding: 10px"/>
+  <img id="tmp-image3" style="display: none; padding: 10px"/>
+</div>
+
+<!-- Step 5 - store images -->
+<button id="store" style="font-size: 20px; padding: 30px 100px; display: none">Store</button>
+
+<div id="store-info" style="margin-top: 10px; display: none"></div>
+
+<div style="margin: 10px 0">
+  <img id="store-image1" style="display: none; padding: 10px"/>
+  <img id="store-image2" style="display: none; padding: 10px"/>
+  <img id="store-image3" style="display: none; padding: 10px"/>
+</div>
+
+<!-- Step 6 - delete images -->
+<button id="delete" style="font-size: 20px; padding: 30px 100px; display: none">Delete</button>
+
+</body>
+</html>
