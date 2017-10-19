@@ -18,6 +18,8 @@ object Conf {
   val imageExecutorNum = System.getProperty("imageExecutorNum", "6").toInt
   val commonHandlerExecutorNum = System.getProperty("commonHandlerExecutorNum", "4").toInt
   val serverSecret = System.getProperty("serverSecret", "nosecret")
+  if (Profile.isJenkins || Profile.isProd) require(serverSecret != "nosecret", "`serverSecret` param must be defined")
+
   val maxJsonPostSize = System.getProperty("maxJsonPostSize", "100000").toInt
 
   /** Список доменов через запятую, с которых разрешено делать запросы к файловому серверу.

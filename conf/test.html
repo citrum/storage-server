@@ -29,6 +29,9 @@
    * Получить токен, чтобы с ним послать запрос
    */
   function createToken() {
+    var secretInput = document.getElementById('secret');
+    var secret = secretInput.value;
+
     var btn = document.getElementById("create-token");
     btn.disabled = true;
     var xhr = createCORSRequest('POST', '/create-token');
@@ -36,8 +39,7 @@
     xhr.onreadystatechange = function () {
       if (xhr.readyState == 4) {
         var tokenId = xhr.responseText;
-        btn.style.display = 'none';
-        btn.disabled = false;
+        document.getElementById('step1').style.display = 'none';
 
         document.getElementById('token').innerHTML = tokenId;
         var form = document.getElementById('form');
@@ -52,6 +54,7 @@
     xhr.onerror = function () {
       alert('error!')
     };
+    xhr.setRequestHeader("Secret", secret);
     xhr.setRequestHeader("Content-Type", "application/json");
     xhr.send(JSON.stringify({
       maxSize: {w: 500, h: 500}
@@ -178,9 +181,15 @@
 </script>
 
 <!-- Step 1 - create token -->
-<button style="font-size: 20px; padding: 30px 100px" id="create-token" onclick="createToken()">
-  Create token
-</button>
+<div id="step1">
+  <div style="margin-bottom: 20px">
+    Secret: <input type="text" name="secret" id="secret" style="width: 300px">
+  </div>
+
+  <button style="font-size: 20px; padding: 30px 100px" id="create-token" onclick="createToken()">
+    Create token
+  </button>
+</div>
 
 <!-- Step 2 - choose file, start upload -->
 <form id="form" enctype="multipart/form-data" method="post" target="upload" style="display: none">

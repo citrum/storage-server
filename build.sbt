@@ -4,7 +4,7 @@ lazy val dev = inputKey[Unit]("Run NettyServerDev")
 val devTask = dev := (runMain in Compile).fullInput(" server.NettyServerDev").evaluated
 
 lazy val root = Project(id = "storage-server", base = new File("."), settings = AssemblyPlugin.assemblySettings ++ Seq(
-  version := "0.9.0",
+  version := "0.9.1",
   scalaVersion := DefaultScalaVersion,
 
   javacOptions ++= Seq("-source", "1.8", "-encoding", "UTF-8"),
