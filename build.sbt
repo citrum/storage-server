@@ -4,7 +4,7 @@ lazy val dev = inputKey[Unit]("Run NettyServerDev")
 val devTask = dev := (runMain in Compile).fullInput(" server.NettyServerDev").evaluated
 
 lazy val root = Project(id = "storage-server", base = new File("."), settings = AssemblyPlugin.assemblySettings ++ Seq(
-  version := "0.9.1",
+  version := "0.9.2",
   scalaVersion := DefaultScalaVersion,
 
   javacOptions ++= Seq("-source", "1.8", "-encoding", "UTF-8"),
@@ -15,7 +15,7 @@ lazy val root = Project(id = "storage-server", base = new File("."), settings = 
   scalaSource in Test := baseDirectory.value / "test",
   unmanagedBase := baseDirectory.value / "unmanaged/jars",
 
-  libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.1.1",
+  libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3",
   libraryDependencies += "io.netty" % "netty-all" % "4.0.36.Final",
   libraryDependencies += "org.apache.commons" % "commons-lang3" % "3.2.1",
   libraryDependencies += "com.fasterxml.jackson.core" % "jackson-databind" % "2.4.5", // Работа с json

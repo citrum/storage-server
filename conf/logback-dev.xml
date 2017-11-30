@@ -4,7 +4,7 @@
     <file>/tmp/storage-server/app.log</file>
     <append>true</append>
     <encoder>
-      <pattern>%date [%level:%thread] %c{1} - %msg%n</pattern>
+      <pattern>%date [%level:%thread] %c{1}:%marker - %msg%n</pattern>
     </encoder>
   </appender>
 
@@ -15,13 +15,13 @@
     </filter>
     <file>/tmp/storage-server/app-warn.log</file>
     <encoder>
-      <pattern>%date [%level:%thread] %c{1} - %msg%n</pattern>
+      <pattern>%date [%level:%thread] %c{1}:%marker - %msg%n</pattern>
     </encoder>
   </appender>
 
   <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
-      <pattern>[%level] %logger{15} :%thread - %message%n%xException{20}</pattern>
+      <pattern>[%level] %logger{15}:%marker :%thread - %message%n%xException{20}</pattern>
     </encoder>
   </appender>
 

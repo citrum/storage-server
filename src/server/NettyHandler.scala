@@ -12,7 +12,7 @@ import io.netty.handler.codec.http.multipart.InterfaceHttpData.HttpDataType
 import io.netty.handler.codec.http.multipart._
 import io.netty.util.CharsetUtil
 import org.apache.commons.lang3.StringUtils
-import org.slf4j.LoggerFactory
+import org.slf4j.{LoggerFactory, MarkerFactory}
 import views.Route
 
 import scala.util.{Failure, Success}
@@ -20,8 +20,8 @@ import scala.util.{Failure, Success}
 class NettyHandler(handlerId: Int, https: Boolean) extends SimpleChannelInboundHandler[HttpObject] {
   import NettyHandler._
 
-  val log = LoggerFactory.getLogger(getClass.getName + "." + handlerId)
-  log.debug("Started")
+  private val logMarker = MarkerFactory.getDetachedMarker("h" + handlerId)
+  log.debug(logMarker, "Started")
 
   private var request: HttpRequest = null
   private var decoder: HttpPostRequestDecoder = null
@@ -32,7 +32,7 @@ class NettyHandler(handlerId: Int, https: Boolean) extends SimpleChannelInboundH
 
   override def channelUnregistered(ctx: ChannelHandlerContext): Unit = {
     if (!noResetOnDisconnect) reset()
-    log.debug("channelUnregistered, decoder:{}", decoder)
+    log.debug(logMarker, "channelUnregistered, decoder:{}", decoder)
   }
 
   override def channelRead0(ctx: ChannelHandlerContext, msg: HttpObject) {
@@ -40,7 +40,7 @@ class NettyHandler(handlerId: Int, https: Boolean) extends SimpleChannelInboundH
       case request: HttpRequest =>
         this.request = request
         Thread.currentThread().setName("netty@" + Thread.currentThread().getId + ": " + request.getMethod.name() + " " + request.getUri)
-        log.debug("{}: {}", request.getMethod: Any, request.getUri: Any)
+        log.debug(logMarker, "{}: {}", request.getMethod: Any, request.getUri: Any)
 
         request.getMethod match {
           case HttpMethod.OPTIONS =>
@@ -123,7 +123,7 @@ class NettyHandler(handlerId: Int, https: Boolean) extends SimpleChannelInboundH
                  _: StringIndexOutOfBoundsException |
                  _: ArrayIndexOutOfBoundsException =>
               sendError(ctx, request, HttpResponseStatus.BAD_REQUEST, "Error decoding post data")
-              log.info("Error decoding post data, request:" + request.getUri)
+              log.info(logMarker, "Error decoding post data, request:" + request.getUri)
               decoder.destroy() // Освобождаем внутренние ресурсы декодера
               decoder = null
               return
@@ -158,7 +158,7 @@ class NettyHandler(handlerId: Int, https: Boolean) extends SimpleChannelInboundH
     // Синхронизация здесь нужна потому что reset() вызывается из handleRequest(onComplete), и из
     // channelUnregistered, причём одновременно с разных потоков.
     synchronized {
-      log.debug("reset, decoder:{}, fileUpload:{}", decoder: Any, fileUpload: Any)
+      log.debug(logMarker, "reset, decoder:{}, fileUpload:{}", decoder: Any, fileUpload: Any)
       request = null
       if (decoder != null) {
         decoder.destroy()
@@ -184,14 +184,14 @@ class NettyHandler(handlerId: Int, https: Boolean) extends SimpleChannelInboundH
             if (data.getHttpDataType eq HttpDataType.FileUpload) {
               val dataFileUpload: FileUpload = data.asInstanceOf[FileUpload]
               if (dataFileUpload.isCompleted && this.fileUpload.isEmpty && dataFileUpload.length() > 0) {
-                log.debug("readHttpDataChunkByChunk set fileUpload: {}", dataFileUpload)
+                log.debug(logMarker, "readHttpDataChunkByChunk set fileUpload: {}", dataFileUpload)
                 this.fileUpload = Some(dataFileUpload)
                 releaseData = false
               }
             }
           } finally {
             if (releaseData) {
-              log.debug("readHttpDataChunkByChunk releaseData")
+              log.debug(logMarker, "readHttpDataChunkByChunk releaseData")
               data.release
             }
           }
@@ -207,16 +207,16 @@ class NettyHandler(handlerId: Int, https: Boolean) extends SimpleChannelInboundH
     cause match {
       // Игнорируем сообщения типа Connection reset by peer, Connection timed out
       case e: IOException => ()
-      case e => log.warn("Netty: " + e.getClass.getSimpleName + ": " + e.getMessage, e)
+      case e => log.warn(logMarker, "Netty: " + e.getClass.getSimpleName + ": " + e.getMessage, e)
     }
     if (ctx.channel().isActive) {
-      log.debug("exceptionCaught channel close")
+      log.debug(logMarker, "exceptionCaught channel close")
       ctx.channel().close()
     }
   }
 
   private def sendError(ctx: ChannelHandlerContext, req: HttpRequest, status: HttpResponseStatus, message: String) {
-    log.debug("sendError {}: {}", status.code(), message)
+    log.debug(logMarker, "sendError {}: {}", status.code(), message)
     val content: ByteBuf = Unpooled.copiedBuffer(message + "\r\n", CharsetUtil.UTF_8)
     val resp: FullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status, content)
     resp.headers().set(CONTENT_TYPE, "text/plain; charset=UTF-8")
@@ -227,7 +227,7 @@ class NettyHandler(handlerId: Int, https: Boolean) extends SimpleChannelInboundH
     // Close the connection as soon as the error message is sent.
     ctx.writeAndFlush(resp).addListener(new ChannelFutureListener {
       override def operationComplete(future: ChannelFuture): Unit = {
-        log.debug("sendError channel close")
+        log.debug(logMarker, "sendError channel close")
         future.channel().close()
         // Закомментарил, потому что выдаёт IllegalReferenceCountException: refCnt: 0, decrement: 1 // content.release()
       }
@@ -235,7 +235,7 @@ class NettyHandler(handlerId: Int, https: Boolean) extends SimpleChannelInboundH
   }
 
   private def sendOk(ctx: ChannelHandlerContext, req: HttpRequest, content: String) {
-    log.debug("sendOk: {}", content)
+    log.debug(logMarker, "sendOk: {}", content)
     val resp: FullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK)
     resp.headers().set(CONTENT_TYPE, "application/json; charset=UTF-8")
     resp.headers().add(ACCESS_CONTROL_ALLOW_ORIGIN, Site.accessAllowOrigin(req))
@@ -273,11 +273,11 @@ class NettyHandler(handlerId: Int, https: Boolean) extends SimpleChannelInboundH
             writeFuture.addListener(ChannelFutureListener.CLOSE)
 
             PageLog.write(PageLog(httpReq, result.status.code().toString))
-            log.debug("Request handled: {}", result.status.code())
+            log.debug(logMarker, "Request handled: {}", result.status.code())
 
           case Failure(e) =>
             PageLog.write(PageLog(httpReq, e.toString))
-            log.error(e.toString, e) // e.toString в тексте сообщения для Sentry
+            log.error(logMarker, e.toString, e) // e.toString в тексте сообщения для Sentry
             sendError(ctx, httpReq.req, INTERNAL_SERVER_ERROR, "Internal server error")
         }
       } finally {
@@ -291,4 +291,5 @@ class NettyHandler(handlerId: Int, https: Boolean) extends SimpleChannelInboundH
 
 object NettyHandler {
   private final val factory: HttpDataFactory = new DefaultHttpDataFactory(DefaultHttpDataFactory.MINSIZE)
+  private final val log = LoggerFactory.getLogger(classOf[NettyHandler])
 }
